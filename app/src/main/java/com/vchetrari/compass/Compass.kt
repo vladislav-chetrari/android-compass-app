@@ -6,57 +6,74 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.core.content.getSystemService
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 
-class Compass(context: Context) : SensorEventListener {
+object Compass {
 
+    fun flowDegrees(context: Context): Flow<Float> {
+        val sensorManager: SensorManager = context.getSystemService()!!
+        return combine(
+            accelerometerData(sensorManager),
+            geomagneticData(sensorManager)
+        ) { accelerometerData, geomagneticData ->
+            val rotationMatrixR = FloatArray(9)
+            val rotationMatrixI = FloatArray(9)
+            val orientation = FloatArray(3)
+            val success = SensorManager.getRotationMatrix(rotationMatrixR, rotationMatrixI, accelerometerData, geomagneticData)
+            if (!success) return@combine null
 
-    private val sensorManager: SensorManager = context.getSystemService()!!
-    private val accelerometerSensor: Sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    private val geomagneticSensor: Sensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-
-    private val accelerometerData = FloatArray(3)
-    private val geomagneticData = FloatArray(3)
-    private val rotationMatrixR = FloatArray(9)
-    private val rotationMatrixI = FloatArray(9)
-
-    var listener: Listener? = null
-
-    fun start() {
-        sensorManager.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_GAME)
-        sensorManager.registerListener(this, geomagneticSensor, SensorManager.SENSOR_DELAY_GAME)
+            SensorManager.getOrientation(rotationMatrixR, orientation)
+            return@combine (Math.toDegrees(orientation[0].toDouble()).toFloat() + 360) % 360
+        }.filterNotNull()
     }
 
-    fun stop() {
-        sensorManager.unregisterListener(this)
-    }
+    private fun accelerometerData(
+        sensorManager: SensorManager,
+        alpha: Float = .97f
+    ): Flow<FloatArray> = callbackFlow {
+        val data = FloatArray(3)
+        val listener = object : SensorEventListener {
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+            override fun onSensorChanged(event: SensorEvent) {
+                data[0] = alpha * data[0] + (1 - alpha) * event.values[0]
+                data[1] = alpha * data[1] + (1 - alpha) * event.values[1]
+                data[2] = alpha * data[2] + (1 - alpha) * event.values[2]
 
-    //TODO kotlin flows
-    override fun onSensorChanged(event: SensorEvent) {
-        val alpha = 0.97f
-        synchronized(this) {
-            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                accelerometerData[0] = alpha * accelerometerData[0] + (1 - alpha) * event.values[0]
-                accelerometerData[1] = alpha * accelerometerData[1] + (1 - alpha) * event.values[1]
-                accelerometerData[2] = alpha * accelerometerData[2] + (1 - alpha) * event.values[2]
-            }
-            if (event.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
-                geomagneticData[0] = alpha * geomagneticData[0] + (1 - alpha) * event.values[0]
-                geomagneticData[1] = alpha * geomagneticData[1] + (1 - alpha) * event.values[1]
-                geomagneticData[2] = alpha * geomagneticData[2] + (1 - alpha) * event.values[2]
-            }
-            if (SensorManager.getRotationMatrix(rotationMatrixR, rotationMatrixI, accelerometerData, geomagneticData)) {
-                val orientation = FloatArray(3)
-                SensorManager.getOrientation(rotationMatrixR, orientation)
-                listener?.onNewAzimuth(
-                    (Math.toDegrees(orientation[0].toDouble()).toFloat() + 360) % 360
-                )
+                trySend(data)
             }
         }
+        sensorManager.registerListener(
+            listener,
+            sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+            SensorManager.SENSOR_DELAY_GAME
+        )
+        awaitClose { sensorManager.unregisterListener(listener) }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit
+    private fun geomagneticData(
+        sensorManager: SensorManager,
+        alpha: Float = .97f
+    ): Flow<FloatArray> = callbackFlow {
+        val data = FloatArray(3)
+        val listener = object : SensorEventListener {
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+            override fun onSensorChanged(event: SensorEvent) {
+                data[0] = alpha * data[0] + (1 - alpha) * event.values[0]
+                data[1] = alpha * data[1] + (1 - alpha) * event.values[1]
+                data[2] = alpha * data[2] + (1 - alpha) * event.values[2]
 
-    interface Listener {
-        fun onNewAzimuth(azimuth: Float)
+                trySend(data)
+            }
+        }
+        sensorManager.registerListener(
+            listener,
+            sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD),
+            SensorManager.SENSOR_DELAY_GAME
+        )
+        awaitClose { sensorManager.unregisterListener(listener) }
     }
 }

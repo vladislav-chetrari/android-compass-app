@@ -6,10 +6,10 @@ import android.view.animation.RotateAnimation
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.collectLatest
 
-class CompassActivity : AppCompatActivity(), Compass.Listener {
-
-    private val compass by lazy { Compass(this) }
+class CompassActivity : AppCompatActivity() {
 
     private val compassNeedle: ImageView by lazy { findViewById(R.id.compassNeedle) }
     private val cardinalDirectionLabel: TextView by lazy { findViewById(R.id.cardinalDirectionLabel) }
@@ -18,22 +18,10 @@ class CompassActivity : AppCompatActivity(), Compass.Listener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_compass)
-        compass.listener = this
-    }
-
-    override fun onStart() {
-        super.onStart()
-        compass.start()
-    }
-
-    override fun onStop() {
-        compass.stop()
-        super.onStop()
-    }
-
-    override fun onDestroy() {
-        compass.listener = null
-        super.onDestroy()
+        lifecycleScope.launchWhenStarted {
+            Compass.flowDegrees(this@CompassActivity)
+                .collectLatest { onNewAzimuth(it) }
+        }
     }
 
     private fun adjustArrow(azimuth: Float) {
@@ -52,7 +40,7 @@ class CompassActivity : AppCompatActivity(), Compass.Listener {
         compassNeedle.startAnimation(animation)
     }
 
-    override fun onNewAzimuth(azimuth: Float) {
+    private fun onNewAzimuth(azimuth: Float) {
         runOnUiThread {
             cardinalDirectionLabel.text = GetCardinalDirectionLabelUseCase(this, azimuth)
             adjustArrow(azimuth)
