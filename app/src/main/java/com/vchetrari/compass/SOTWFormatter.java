@@ -1,4 +1,4 @@
-package com.sevencrayons.compass;
+package com.vchetrari.compass;
 
 import android.content.Context;
 
