@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.sevencrayons.compass"
+    namespace = "com.vchetrari.compass"
     compileSdk = 33
 
     defaultConfig {
-        applicationId = "com.sevencrayons.compass"
+        applicationId = "com.vchetrari.compass"
         minSdk = 24
         targetSdk = 33
         versionName = "1.0.0"
