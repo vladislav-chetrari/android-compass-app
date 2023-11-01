@@ -11,22 +11,25 @@ import kotlinx.coroutines.flow.collectLatest
 
 class CompassActivity : AppCompatActivity() {
 
+    private val compass by lazy { Compass(this) }
+    private val cardinalDirection by lazy { CardinalDirection(resources) }
     private val compassNeedle: ImageView by lazy { findViewById(R.id.compassNeedle) }
     private val cardinalDirectionLabel: TextView by lazy { findViewById(R.id.cardinalDirectionLabel) }
-    private var currentAzimuth = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_compass)
         lifecycleScope.launchWhenStarted {
-            Compass.flowDegrees(this@CompassActivity)
-                .collectLatest { onNewAzimuth(it) }
+            compass.azimuth().collectLatest { azimuth ->
+                cardinalDirectionLabel.text = cardinalDirection.labelOf(azimuth)
+                adjustArrow(azimuth)
+            }
         }
     }
 
     private fun adjustArrow(azimuth: Float) {
         val animation = RotateAnimation(
-            -currentAzimuth,
+            -azimuth,
             -azimuth,
             Animation.RELATIVE_TO_SELF,
             0.5f,
@@ -36,14 +39,6 @@ class CompassActivity : AppCompatActivity() {
         animation.duration = 500
         animation.repeatCount = 0
         animation.fillAfter = true
-        currentAzimuth = azimuth
         compassNeedle.startAnimation(animation)
-    }
-
-    private fun onNewAzimuth(azimuth: Float) {
-        runOnUiThread {
-            cardinalDirectionLabel.text = GetCardinalDirectionLabelUseCase(this, azimuth)
-            adjustArrow(azimuth)
-        }
     }
 }

@@ -1,6 +1,6 @@
 package com.vchetrari.compass
 
-import android.content.Context
+import android.content.res.Resources
 
 /**
  * SOTW is short Side Of The World
@@ -15,7 +15,7 @@ import android.content.Context
  * https://www.geeksforgeeks.org/find-closest-number-array/
  */
 //TODO fix algorithm, doesn't show proper label anyways
-object GetCardinalDirectionLabelUseCase {
+class CardinalDirection(private val resources: Resources) {
 
     private val sides = (0..360 step 45).toList().toIntArray()
     private val names = intArrayOf(
@@ -30,10 +30,10 @@ object GetCardinalDirectionLabelUseCase {
         R.string.sotw_north,
     )
 
-    operator fun invoke(context: Context, azimuth: Float): String {
+    fun labelOf(azimuth: Float): String {
         val iAzimuth = azimuth.toInt()
         val index = findClosestIndex(iAzimuth)
-        return iAzimuth.toString() + "° " + context.getString(names[index])
+        return iAzimuth.toString() + "° " + resources.getString(names[index])
     }
 
     /**
